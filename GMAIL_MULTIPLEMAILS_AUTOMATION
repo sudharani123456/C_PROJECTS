@@ -1,0 +1,213 @@
+#include <windows.h>
+#include <commctrl.h>
+#include <string.h>
+#include <stdlib.h>
+
+// Global variables
+HINSTANCE hInst;
+HWND hEmailEdit, hSendButton, hSubjectEdit, hBodyEdit;
+char emailList[1024] = {0};
+char subject[256] = "Automated Email from TECHNICALHUB";
+char body[1024] = "Hello,\n\nThis is sudharani from TECHNICALHUB\n\nThank You..";
+
+// Improved typing function that handles special characters
+void TypeText(const char *text) {
+    int i;
+    for(i = 0; text[i] != '\0'; i++) {
+        SHORT key = VkKeyScanA(text[i]);
+        BYTE vk = LOBYTE(key);
+        BYTE shiftState = HIBYTE(key);
+        
+        if(shiftState & 1) {
+            keybd_event(VK_SHIFT, 0, 0, 0);
+        }
+        
+        keybd_event(vk, 0, 0, 0);
+        keybd_event(vk, 0, KEYEVENTF_KEYUP, 0);
+        
+        if(shiftState & 1) {
+            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
+        }
+        
+        Sleep(50);
+    }
+}
+
+void MouseClick(int x, int y) {
+    SetCursorPos(x, y);
+    Sleep(500);
+    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+    Sleep(100);
+    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+}
+
+void SendSingleEmail(const char* recipient) {
+    // Click compose button (adjust coordinates)
+    MouseClick(100, 200);
+    Sleep(2000);
+    
+    // Type recipient
+    TypeText(recipient);
+    Sleep(1000);
+    
+    // Press Enter to confirm recipient
+    keybd_event(VK_RETURN, 0, 0, 0);
+    keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+    Sleep(1000);
+    
+    // Tab to subject field
+    keybd_event(VK_TAB, 0, 0, 0);
+    keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, 0);
+    Sleep(500);
+    
+    // Type subject
+    TypeText(subject);
+    Sleep(1000);
+    
+    // Tab to message body
+    keybd_event(VK_TAB, 0, 0, 0);
+    keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, 0);
+    Sleep(500);
+    
+    // Type message
+    TypeText(body);
+    Sleep(1000);
+    
+    // Send the email (Ctrl+Enter)
+    keybd_event(VK_CONTROL, 0, 0, 0);
+    keybd_event(VK_RETURN, 0, 0, 0);
+    keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+    
+    Sleep(3000); // Wait for email to send
+}
+
+void SendEmailAutomation() {
+    // Open Gmail in Chrome
+    ShellExecute(NULL, "open", "chrome.exe", "https://mail.google.com", NULL, SW_SHOW);
+    Sleep(10000); // Wait for Gmail to load
+    
+    // Get the email list and parse it
+    GetWindowText(hEmailEdit, emailList, sizeof(emailList));
+    GetWindowText(hSubjectEdit, subject, sizeof(subject));
+    GetWindowText(hBodyEdit, body, sizeof(body));
+    
+    if (strlen(emailList) == 0) {
+        MessageBox(NULL, "Please enter at least one email address", "Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    
+    // Parse email list (separated by commas or newlines)
+    char *token = strtok(emailList, ",\n");
+    while (token != NULL) {
+        // Trim whitespace from the token
+        while (*token == ' ' || *token == '\t') token++;
+        
+        char *end = token + strlen(token) - 1;
+        while (end > token && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) {
+            *end = '\0';
+            end--;
+        }
+        
+        if (strlen(token) > 0) {
+            SendSingleEmail(token);
+        }
+        
+        token = strtok(NULL, ",\n");
+    }
+    
+    MessageBox(NULL, "All emails sent successfully!", "Success", MB_OK | MB_ICONINFORMATION);
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE: {
+            // Create email label
+            CreateWindow("STATIC", "Recipient Emails (comma or newline separated):", 
+                         WS_VISIBLE | WS_CHILD,
+                         20, 10, 300, 20, hWnd, NULL, hInst, NULL);
+            
+            // Create multi-line email edit box
+            hEmailEdit = CreateWindow("EDIT", "", 
+                                     WS_VISIBLE | WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
+                                     20, 30, 360, 80, hWnd, NULL, hInst, NULL);
+            
+            // Create subject label
+            CreateWindow("STATIC", "Subject:", 
+                         WS_VISIBLE | WS_CHILD,
+                         20, 120, 60, 20, hWnd, NULL, hInst, NULL);
+            
+            // Create subject edit box
+            hSubjectEdit = CreateWindow("EDIT", subject, 
+                                     WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                     90, 120, 290, 25, hWnd, NULL, hInst, NULL);
+            
+            // Create body label
+            CreateWindow("STATIC", "Message Body:", 
+                         WS_VISIBLE | WS_CHILD,
+                         20, 150, 80, 20, hWnd, NULL, hInst, NULL);
+            
+            // Create body edit box
+            hBodyEdit = CreateWindow("EDIT", body, 
+                                     WS_VISIBLE | WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
+                                     20, 170, 360, 120, hWnd, NULL, hInst, NULL);
+            
+            // Create send button
+            hSendButton = CreateWindow("BUTTON", "Send Emails", 
+                                       WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+                                       150, 300, 100, 30, hWnd, (HMENU)1, hInst, NULL);
+            break;
+        }
+        case WM_COMMAND: {
+            if (LOWORD(wParam) == 1) { // Send button clicked
+                SendEmailAutomation();
+            }
+            break;
+        }
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        default:
+            return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    hInst = hInstance;
+    
+    // Register window class
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE+1);
+    wc.lpszClassName = "EmailAutomationClass";
+    
+    if (!RegisterClass(&wc)) {
+        MessageBox(NULL, "Window Registration Failed!", "Error", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+    
+    // Create window
+    HWND hWnd = CreateWindow("EmailAutomationClass", "Email Automation Tool",
+                             WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
+                             CW_USEDEFAULT, CW_USEDEFAULT, 400, 370,
+                             NULL, NULL, hInstance, NULL);
+    
+    if (!hWnd) {
+        MessageBox(NULL, "Window Creation Failed!", "Error", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+    
+    ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
+    
+    // Message loop
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    
+    return (int)msg.wParam;
+}
